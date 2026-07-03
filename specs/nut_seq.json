@@ -1,0 +1,14 @@
+{
+  "type": "sequence",
+  "name": "nut_crack",
+  "fps": 12,
+  "loop": false,
+  "trigger": "tap",
+  "frames": [
+    {"image": "assets/nut/n0.png", "hold": 10},
+    {"image": "assets/nut/n1.png", "hold": 4},
+    {"image": "assets/nut/n2.png", "hold": 4},
+    {"image": "assets/nut/n3.png", "hold": 14}
+  ],
+  "segments": {"crack": [0, 3]}
+}

@@ -1,0 +1,16 @@
+{
+  "type": "regions",
+  "name": "flower_directed",
+  "image": "assets/flower_1.png",
+  "fps": 30,
+  "duration": 2.5,
+  "loop": true,
+  "globals": [
+    {"effect": "breathe", "params": {"color": "#20406a", "peak": 12}}
+  ],
+  "placements": [
+    {"effect": "glow_spots", "x": 128, "y": 90,  "params": {"radius": 40, "color": "#ffd24a", "peak": 95}},
+    {"effect": "glow_spots", "x": 70,  "y": 160, "params": {"radius": 28, "color": "#ff5aa0", "peak": 80}},
+    {"effect": "glow_spots", "x": 186, "y": 160, "params": {"radius": 28, "color": "#5affc0", "peak": 80}}
+  ]
+}

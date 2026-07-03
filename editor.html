@@ -1,0 +1,362 @@
+<!doctype html>
+<html lang="ru">
+<meta charset="utf-8">
+<title>Lottie редактор</title>
+<style>
+  :root{--bg:#1a1b20;--panel:#24262e;--panel2:#2c2f39;--line:#3a3d49;--fg:#e8e8ee;--acc:#5aa9ff;--ok:#39d98a}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px system-ui,sans-serif;background:var(--bg);color:var(--fg);
+       display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto 1fr;height:100vh}
+  header{grid-column:1/3;display:flex;gap:6px;align-items:center;padding:10px 14px;
+         background:var(--panel);border-bottom:1px solid var(--line)}
+  header h1{font-size:15px;margin:0;margin-right:12px}
+  .tab{padding:6px 14px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);
+       color:var(--fg);cursor:pointer}
+  .tab.on{background:var(--acc);color:#04122a;border-color:var(--acc);font-weight:600}
+  .side{overflow:auto;padding:14px;border-right:1px solid var(--line)}
+  .prev{overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;align-items:center}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+  .card h3{margin:0 0 8px;font-size:13px;text-transform:uppercase;letter-spacing:.04em;opacity:.8}
+  label{display:block;margin:6px 0 2px;font-size:12px;opacity:.85}
+  input,select,button,textarea{font:13px system-ui;padding:6px 9px;border-radius:7px;
+       border:1px solid var(--line);background:var(--panel2);color:var(--fg)}
+  input[type=color]{padding:2px;height:32px;width:44px}
+  input[type=number]{width:80px}
+  button{cursor:pointer}
+  button.primary{background:var(--acc);color:#04122a;border-color:var(--acc);font-weight:600}
+  button.go{background:var(--ok);color:#04241a;border-color:var(--ok);font-weight:600}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .stagewrap{position:relative;display:inline-block;max-width:100%}
+  #img{max-width:100%;display:block;border-radius:8px;cursor:crosshair}
+  .marker{position:absolute;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;
+          border:2px solid #fff;box-shadow:0 0 0 2px #000a, 0 0 8px #000;pointer-events:none;
+          display:flex;align-items:center;justify-content:center;font-size:9px;color:#fff}
+  ul.list{list-style:none;padding:0;margin:0}
+  ul.list li{display:flex;gap:6px;align-items:center;padding:6px;border:1px solid var(--line);
+       border-radius:7px;margin-bottom:6px;background:var(--panel2)}
+  ul.list li .grow{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .x{color:#ff8a8a;cursor:pointer;font-weight:700;padding:0 4px}
+  #anim{width:min(46vw,72vh);height:min(46vw,72vh);background:#101116;border-radius:10px}
+  .hint{opacity:.6;font-size:12px}
+  .pill{font-size:11px;background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:2px 8px}
+  #status{font-size:12px;min-height:16px}
+  .hidden{display:none}
+  thumb{}
+  .thumbs{display:flex;gap:6px;flex-wrap:wrap}
+  .thumbs img{height:54px;border-radius:6px;border:1px solid var(--line)}
+</style>
+
+<header>
+  <h1>Lottie редактор</h1>
+  <button class="tab on" id="tabA" onclick="showTab('A')">Расстановка эффектов</button>
+  <button class="tab"    id="tabB" onclick="showTab('B')">Секвенция кадров</button>
+  <span class="pill" style="margin-left:auto" id="engine">python-lottie</span>
+</header>
+
+<!-- ================= LEFT: controls ================= -->
+<div class="side">
+  <!-- ---------- TAB A ---------- -->
+  <div id="paneA">
+    <div class="card">
+      <h3>1. Картинка</h3>
+      <div class="row">
+        <input type="file" id="fileA" accept=".png,.jpg,.jpeg">
+        <span class="hint">или путь: </span>
+        <input id="pathA" size="20" placeholder="assets/flower_1.png" value="assets/flower_1.png">
+        <button onclick="loadPathA()">Загрузить</button>
+      </div>
+      <div class="hint" id="dimA"></div>
+    </div>
+
+    <div class="card">
+      <h3>2. Кликни по картинке → эффект в точке</h3>
+      <div class="row">
+        <select id="spotEffect">
+          <option value="glow_spots">glow_spots — мягкое свечение</option>
+          <option value="flicker_spots">flicker_spots — неоновое мигание</option>
+          <option value="sparkles">sparkles — искры</option>
+        </select>
+        <label style="margin:0">цвет <input type="color" id="spotColor" value="#ffd24a"></label>
+        <label style="margin:0">радиус <input type="number" id="spotRadius" value="45" min="4"></label>
+        <label style="margin:0">пик <input type="number" id="spotPeak" value="90" min="1" max="100"></label>
+      </div>
+      <p class="hint">Каждый клик добавляет точку выбранного эффекта. ЛКМ — добавить.</p>
+      <ul class="list" id="placeList"></ul>
+    </div>
+
+    <div class="card">
+      <h3>3. Глобальные эффекты (на весь кадр)</h3>
+      <div class="row">
+        <select id="globalEffect"></select>
+        <label style="margin:0">цвет <input type="color" id="globalColor" value="#1060a6"></label>
+        <button onclick="addGlobal()">+ добавить</button>
+      </div>
+      <ul class="list" id="globalList"></ul>
+    </div>
+
+    <div class="card">
+      <h3>4. Тайминг и вывод</h3>
+      <div class="row">
+        <label style="margin:0">fps <input type="number" id="fpsA" value="30"></label>
+        <label style="margin:0">длит. с <input type="number" id="durA" value="2.5" step="0.5"></label>
+        <label style="margin:0"><input type="checkbox" id="loopA" checked> loop</label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="go" onclick="genA()">▶ Собрать и показать</button>
+        <button class="primary" onclick="saveA()">💾 Сохранить .json</button>
+        <button onclick="downloadJSON()">⬇ Скачать</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- TAB B ---------- -->
+  <div id="paneB" class="hidden">
+    <div class="card">
+      <h3>1. Кадры (карусель PNG)</h3>
+      <div class="row">
+        <input type="file" id="filesB" accept=".png,.jpg,.jpeg" multiple>
+        <span class="hint">или путь: </span>
+        <input id="pathB" size="16" placeholder="assets/nut/n0.png">
+        <button onclick="addFrameByPath()">+ кадр</button>
+      </div>
+      <p class="hint">Порядок = порядок воспроизведения. hold — сколько кадров держать, fade — кроссфейд.</p>
+      <ul class="list" id="frameList"></ul>
+    </div>
+
+    <div class="card">
+      <h3>2. Воспроизведение</h3>
+      <div class="row">
+        <label style="margin:0">fps <input type="number" id="fpsB" value="12"></label>
+        <label style="margin:0"><input type="checkbox" id="loopB"> loop</label>
+        <label style="margin:0">триггер
+          <select id="triggerB">
+            <option value="tap">tap (по клику)</option>
+            <option value="loop">loop (по кругу)</option>
+            <option value="hover">hover (наведение)</option>
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="go" onclick="genB()">▶ Собрать и показать</button>
+        <button class="primary" onclick="saveB()">💾 Сохранить .json + плеер</button>
+        <button onclick="downloadJSON()">⬇ Скачать</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="status" class="hint"></div>
+</div>
+
+<!-- ================= RIGHT: preview ================= -->
+<div class="prev">
+  <div id="stageA" class="stagewrap">
+    <img id="img" alt="">
+  </div>
+  <div id="anim"></div>
+  <div class="hint" id="meta"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const status = m => { $('status').textContent = m; };
+let tab = 'A';
+let inst = null, lastLottie = null;
+
+// ---- state ----
+const A = { image: 'assets/flower_1.png', natW: 0, natH: 0, placements: [], globals: [] };
+const B = { frames: [] };   // {image, hold, fade, thumb}
+
+// ---------- effects catalog ----------
+fetch('/api/effects').then(r=>r.json()).then(cat=>{
+  const overlays = (cat.categories.overlay||[]).map(e=>e.name);
+  const sel = $('globalEffect');
+  const globalsOk = ['breathe','vignette','light_sweep','particles'];
+  globalsOk.forEach(n=>{ if(overlays.includes(n)){
+    const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o);
+  }});
+}).catch(()=>status('нет связи с сервером — запусти server.py'));
+
+// ---------- tabs ----------
+function showTab(t){
+  tab=t;
+  $('tabA').classList.toggle('on', t==='A');
+  $('tabB').classList.toggle('on', t==='B');
+  $('paneA').classList.toggle('hidden', t!=='A');
+  $('paneB').classList.toggle('hidden', t!=='B');
+  $('stageA').classList.toggle('hidden', t!=='B' ? false : true);
+  renderMarkers();
+}
+
+// ================= TAB A =================
+function setImageA(src){
+  A.image = src;
+  const img = $('img');
+  img.onload = ()=>{ A.natW=img.naturalWidth; A.natH=img.naturalHeight;
+    $('dimA').textContent = `${A.natW}×${A.natH}px`; renderMarkers(); };
+  img.src = src + (src.startsWith('data:')?'':('?t='+Date.now()));
+}
+function loadPathA(){ setImageA($('pathA').value.trim()); }
+
+$('fileA').addEventListener('change', e=>{
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ uploadThen(f.name, r.result, p=>{ $('pathA').value=p; setImageA(r.result); }); };
+  r.readAsDataURL(f);
+});
+
+function uploadThen(name, dataUrl, cb){
+  fetch('/api/upload',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name,data_url:dataUrl})})
+   .then(r=>r.json()).then(j=>{ if(j.error){status(j.error);return;} status('загружено: '+j.path); cb(j.path,j); })
+   .catch(()=>status('upload не удался'));
+}
+
+$('img').addEventListener('click', e=>{
+  if(tab!=='A' || !A.natW) return;
+  const img=$('img'); const r=img.getBoundingClientRect();
+  const x = Math.round((e.clientX-r.left)/r.width  * A.natW);
+  const y = Math.round((e.clientY-r.top )/r.height * A.natH);
+  A.placements.push({
+    effect: $('spotEffect').value, x, y,
+    params:{ color:$('spotColor').value, radius:+$('spotRadius').value, peak:+$('spotPeak').value }
+  });
+  renderMarkers(); renderPlaceList();
+});
+
+function renderMarkers(){
+  document.querySelectorAll('.marker').forEach(m=>m.remove());
+  if(tab!=='A'||!A.natW) return;
+  const img=$('img'); const r=img.getBoundingClientRect();
+  const sw=img.clientWidth/A.natW, sh=img.clientHeight/A.natH;
+  A.placements.forEach((p,i)=>{
+    const m=document.createElement('div'); m.className='marker';
+    m.style.left=(p.x*sw)+'px'; m.style.top=(p.y*sh)+'px';
+    m.style.background=p.params.color; m.textContent=i+1;
+    $('stageA').appendChild(m);
+  });
+}
+window.addEventListener('resize', renderMarkers);
+
+function renderPlaceList(){
+  const ul=$('placeList'); ul.innerHTML='';
+  A.placements.forEach((p,i)=>{
+    const li=document.createElement('li');
+    li.innerHTML=`<span class="pill">${i+1}</span><span class="grow">${p.effect} @ (${p.x},${p.y}) r${p.params.radius}</span>`;
+    const x=document.createElement('span'); x.className='x'; x.textContent='✕';
+    x.onclick=()=>{ A.placements.splice(i,1); renderMarkers(); renderPlaceList(); };
+    li.appendChild(x); ul.appendChild(li);
+  });
+}
+
+function addGlobal(){
+  A.globals.push({effect:$('globalEffect').value, params:{color:$('globalColor').value}});
+  renderGlobalList();
+}
+function renderGlobalList(){
+  const ul=$('globalList'); ul.innerHTML='';
+  A.globals.forEach((g,i)=>{
+    const li=document.createElement('li');
+    li.innerHTML=`<span class="grow">${g.effect} · ${g.params.color}</span>`;
+    const x=document.createElement('span'); x.className='x'; x.textContent='✕';
+    x.onclick=()=>{ A.globals.splice(i,1); renderGlobalList(); };
+    li.appendChild(x); ul.appendChild(li);
+  });
+}
+
+function specA(){
+  return { type:'regions', image:A.image, fps:+$('fpsA').value, duration:+$('durA').value,
+           loop:$('loopA').checked, globals:A.globals, placements:A.placements };
+}
+function genA(){ generate(specA()); }
+function saveA(){
+  const name = (A.image.split('/').pop().split('.')[0]||'directed');
+  generate(specA(), 'output/'+name+'_directed.json');
+}
+
+// ================= TAB B =================
+$('filesB').addEventListener('change', e=>{
+  const files=[...e.target.files]; if(!files.length) return;
+  files.forEach(f=>{
+    const r=new FileReader();
+    r.onload=()=> uploadThen(f.name, r.result, p=>{
+      B.frames.push({image:p, hold:6, fade:0, thumb:r.result}); renderFrameList(); });
+    r.readAsDataURL(f);
+  });
+});
+function addFrameByPath(){
+  const p=$('pathB').value.trim(); if(!p) return;
+  B.frames.push({image:p, hold:6, fade:0, thumb:p}); renderFrameList();
+}
+function renderFrameList(){
+  const ul=$('frameList'); ul.innerHTML='';
+  B.frames.forEach((fr,i)=>{
+    const li=document.createElement('li');
+    const img=document.createElement('img'); img.src=fr.thumb; img.style.height='40px';
+    img.style.borderRadius='5px'; img.style.border='1px solid #3a3d49';
+    const info=document.createElement('span'); info.className='grow';
+    info.style.fontSize='12px'; info.textContent=fr.image.split('/').pop();
+    const hold=mkNum('hold',fr.hold,v=>fr.hold=v);
+    const fade=mkNum('fade',fr.fade,v=>fr.fade=v);
+    const up=document.createElement('button'); up.textContent='↑'; up.onclick=()=>move(i,-1);
+    const dn=document.createElement('button'); dn.textContent='↓'; dn.onclick=()=>move(i,1);
+    const x=document.createElement('span'); x.className='x'; x.textContent='✕';
+    x.onclick=()=>{ B.frames.splice(i,1); renderFrameList(); };
+    li.append(img,info,hold,fade,up,dn,x); ul.appendChild(li);
+  });
+}
+function mkNum(label,val,cb){
+  const w=document.createElement('label'); w.style.margin='0'; w.style.fontSize='11px';
+  w.textContent=label+' ';
+  const inp=document.createElement('input'); inp.type='number'; inp.value=val;
+  inp.style.width='52px'; inp.min='0'; inp.oninput=()=>cb(+inp.value);
+  w.appendChild(inp); return w;
+}
+function move(i,d){
+  const j=i+d; if(j<0||j>=B.frames.length) return;
+  [B.frames[i],B.frames[j]]=[B.frames[j],B.frames[i]]; renderFrameList();
+}
+function specB(){
+  return { type:'sequence', fps:+$('fpsB').value, loop:$('loopB').checked,
+           trigger:$('triggerB').value,
+           frames:B.frames.map(f=>({image:f.image,hold:f.hold,fade:f.fade})) };
+}
+function genB(){
+  if(!B.frames.length){ status('добавь хотя бы 1 кадр'); return; }
+  generate(specB());
+}
+function saveB(){
+  if(!B.frames.length){ status('добавь кадры'); return; }
+  generate(specB(), 'output/sequence.json', 'output/sequence_player.html');
+}
+
+// ================= shared: generate + preview =================
+function generate(spec, save, player){
+  status('генерация...');
+  fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({spec, save, player})})
+   .then(r=>r.json()).then(j=>{
+     if(j.error){ status('Ошибка: '+j.error); return; }
+     lastLottie=j.lottie; render(j.lottie);
+     let msg='готово';
+     if(j.saved) msg+=' → '+j.saved;
+     if(j.player) msg+=' + '+j.player;
+     status(msg);
+   }).catch(e=>status('сеть: '+e.message));
+}
+function render(data){
+  if(inst) inst.destroy();
+  inst=lottie.loadAnimation({container:$('anim'),renderer:'svg',loop:true,autoplay:true,animationData:data});
+  $('meta').textContent=`${data.w}×${data.h} · ${data.fr}fps · ${data.op} кадров · ${data.layers.length} слоёв`;
+}
+function downloadJSON(){
+  if(!lastLottie){ status('сначала собери анимацию'); return; }
+  const blob=new Blob([JSON.stringify(lastLottie)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=(lastLottie.nm||'anim')+'.json'; a.click();
+}
+
+// init
+setImageA(A.image);
+</script>
+</html>

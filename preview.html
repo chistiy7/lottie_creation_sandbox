@@ -1,0 +1,75 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Lottie preview</title>
+<style>
+  body{font-family:system-ui,sans-serif;margin:0;background:#1e1f24;color:#eee;
+       display:flex;flex-direction:column;align-items:center;gap:16px;padding:24px}
+  #stage{background:#2a2c33;border-radius:12px;padding:8px}
+  #anim{width:360px;height:360px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+  input,button,select{font-size:14px;padding:6px 10px;border-radius:8px;border:1px solid #444;
+       background:#2a2c33;color:#eee}
+  button{cursor:pointer}
+  .hint{opacity:.6;font-size:12px;max-width:520px;text-align:center}
+</style>
+<h3>Lottie preview</h3>
+
+<div class="row">
+  <label>Файл: <input type="file" id="picker" accept=".json,application/json"></label>
+  <label><input type="checkbox" id="loop" checked> loop</label>
+</div>
+
+<div class="row">
+  <span class="hint">или по URL (нужен локальный сервер):</span>
+  <input id="url" size="34" placeholder="output/server_room.json" value="output/server_room.json">
+  <button onclick="loadUrl()">Load URL</button>
+</div>
+
+<div id="stage"><div id="anim"></div></div>
+<div class="row" id="status">Выбери .json из папки output/ через «Файл».</div>
+<div class="row hint">Панель предпросмотра не может делать относительный fetch — используй выбор файла,
+  либо запусти <code>python3 -m http.server</code> и открой preview.html через localhost.</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bodymovin/5.12.2/lottie.min.js"></script>
+<script>
+let inst;
+const status = document.getElementById('status');
+
+function render(data, label){
+  if(inst) inst.destroy();
+  inst = lottie.loadAnimation({
+    container: document.getElementById('anim'),
+    renderer: 'svg',
+    loop: document.getElementById('loop').checked,
+    autoplay: true,
+    animationData: data,
+  });
+  status.textContent = label+'  ('+data.w+'x'+data.h+', '+data.fr+'fps, '+data.op+' frames)';
+}
+
+document.getElementById('picker').addEventListener('change', e=>{
+  const f = e.target.files[0];
+  if(!f) return;
+  const r = new FileReader();
+  r.onload = () => {
+    try { render(JSON.parse(r.result), f.name); }
+    catch(err){ status.textContent = 'Ошибка парсинга JSON: '+err.message; }
+  };
+  r.readAsText(f);
+});
+
+function loadUrl(){
+  const path = document.getElementById('url').value.trim();
+  let abs;
+  try { abs = new URL(path, document.baseURI).href; }
+  catch(err){ status.textContent = 'Не удалось разобрать URL — используй выбор файла.'; return; }
+  status.textContent = 'loading '+abs+' ...';
+  fetch(abs)
+    .then(r=>{ if(!r.ok) throw new Error(r.status+' '+r.statusText); return r.json(); })
+    .then(d=>render(d, path))
+    .catch(e=>{ status.textContent = 'Ошибка загрузки: '+e.message+
+      ' — используй выбор файла или локальный сервер (python3 -m http.server).'; });
+}
+
+document.getElementById('loop').addEventListener('change', ()=>{ if(inst) inst.loop = document.getElementById('loop').checked; });
+</script>
