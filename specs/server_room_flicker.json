@@ -2,25 +2,26 @@
   "type": "regions",
   "name": "server_room_activity",
   "image": "assets/server_room.png",
-  "fps": 30,
-  "duration": 3.0,
+  "fps": 24,
+  "duration": 2.08,
   "loop": true,
   "globals": [
     {
-      "effect": "flicker_spots",
+      "effect": "rect_blink",
       "params": {
-        "count": 42,
-        "radius": 28,
-        "peak": 92,
-        "threshold": 0.38,
+        "count": 16,
+        "threshold": 120,
+        "rise": 11,
+        "fall": 11,
+        "peak": 100,
         "seed": 17
       }
     },
     {
-      "effect": "breathe",
+      "effect": "ambient_pulse",
       "params": {
         "color": "#0a3060",
-        "peak": 8
+        "peak": 15
       }
     }
   ]

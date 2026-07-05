@@ -6,7 +6,7 @@
 
 import random
 
-from engine import effect, kfs, parse_color, detect_bright_spots
+from engine import effect, kfs, parse_color, detect_bright_spots, detect_led_bars
 from lottie.objects.layers import ShapeLayer
 from lottie.objects.shapes import (
     Rect, Group, Fill, GradientFill, GradientType, Star, StarType,
@@ -34,6 +34,71 @@ def _pulse_kfs(frames, phase, rise, fall, peak):
     if end < frames:
         ks.append((frames, 0))
     return ks
+
+
+def _blink_kfs(frames, phase, rise, fall, peak):
+    ks = [(0, 0)]
+    if phase > 0:
+        ks.append((phase, 0))
+    ks.append((phase + rise, peak, "ease_in_out"))
+    end = min(frames, phase + rise + fall)
+    ks.append((end, 0, "ease_in_out"))
+    if end < frames:
+        ks.append((frames, 0))
+    return ks
+
+
+def _rects(ctx):
+    """Ручные rects или авто-детект LED-полосок."""
+    p = ctx.params
+    if p.get("rects"):
+        return p["rects"]
+    return detect_led_bars(
+        ctx.image_path,
+        threshold=p.get("threshold", 130),
+        min_w=p.get("min_w", 15),
+        max_w=p.get("max_w", 120),
+        max_h=p.get("max_h", 50),
+        max_area=p.get("max_area", 3500),
+        max_count=p.get("count", 20),
+        min_dist=p.get("min_dist", 28),
+    )
+
+
+@effect("rect_blink", "overlay",
+        "Мигание прямоугольных LED-индикаторов на шкафах (как в эталоне). "
+        "Авто-детект полосок или ручные rects. "
+        "params: count, threshold, rise, peak, seed, rects")
+def rect_blink(ctx):
+    p = ctx.params
+    rng = random.Random(p.get("seed", 11))
+    rise = p.get("rise", max(8, round(ctx.frames * 0.22)))
+    fall = p.get("fall", rise)
+    peak = p.get("peak", 100)
+    pad_x = p.get("pad_x", 1.15)
+    pad_y = p.get("pad_y", 1.3)
+    for i, r in enumerate(_rects(ctx)):
+        x = r["x"] + ctx.ox
+        y = r["y"] + ctx.oy
+        rw = r.get("w", p.get("width", 80)) * pad_x
+        rh = r.get("h", p.get("height", 12)) * pad_y
+        col = p.get("color") or r.get("color", "#10a6ff")
+        L = ctx.rect_blink_layer(x, y, rw, rh, col, name=f"led_{i}")
+        phase = r.get("phase", rng.uniform(0, max(1, ctx.frames - rise - fall)))
+        kfs(L.transform.opacity, _blink_kfs(ctx.frames, phase, rise, fall, peak))
+        ctx.add_overlay(L)
+
+
+@effect("ambient_pulse", "overlay",
+        "Лёгкая пульсация атмосферы на весь кадр; params: color, peak")
+def ambient_pulse(ctx):
+    p = ctx.params
+    peak = p.get("peak", 15)
+    L = ctx.rect_layer(ctx.canvas_w, ctx.canvas_h, p.get("color", "#0a3060"), name="ambient")
+    f = ctx.frames
+    mid = round(f * 0.64)
+    kfs(L.transform.opacity, [(0, 0), (mid, peak, "ease_in_out"), (f, 0, "ease_in_out")])
+    ctx.add_overlay(L)
 
 
 @effect("glow_spots", "overlay",

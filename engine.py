@@ -83,7 +83,8 @@ COMBOS: dict[str, list[str]] = {
     "scene_alive": ["glow_spots", "breathe", "particles"],
     "neon":        ["flicker_spots", "breathe"],
     "cinematic":   ["glow_spots", "vignette", "light_sweep"],
-    "server_room": ["glow_spots", "breathe", "vignette"],
+    "server_room": ["rect_blink", "ambient_pulse"],
+    "server_room_glow": ["glow_spots", "breathe", "vignette"],
     # layer-fx combos
     "dreamy":      ["gaussian_blur_pulse", "breathe"],
     "spotlight":   ["drop_shadow", "vignette"],
@@ -153,6 +154,72 @@ def detect_bright_spots(path, count=12, threshold=0.5, min_dist_frac=0.045):
     } for l, x, y, c in picked]
 
 
+def detect_led_bars(path, threshold=130, min_w=15, max_w=120, max_h=50,
+                    max_area=3500, max_count=20, min_dist=28):
+    """Находит горизонтальные LED-полоски на серверных шкафах.
+
+  Возвращает список {x, y, w, h, color} в координатах исходного PNG.
+  Алгоритм: построчное сканирование ярких cyan-пикселей + слияние сегментов.
+    """
+    from PIL import Image as PILImage
+    import numpy as np
+
+    im = PILImage.open(path).convert("RGB")
+    arr = np.array(im)
+    h, w = arr.shape[:2]
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
+
+    rects = []
+    seen = set()
+    for thr in (threshold, threshold - 20, threshold - 35):
+        mask = (lum > thr) & (g > 110) & (b > 110) & (r < 130)
+        for y in range(h):
+            row = mask[y]
+            x = 0
+            while x < w:
+                while x < w and not row[x]:
+                    x += 1
+                x0 = x
+                while x < w and row[x]:
+                    x += 1
+                x1 = x
+                rw = x1 - x0
+                if rw < min_w:
+                    continue
+                y0, y1 = y, y + 1
+                while y0 > 0 and mask[y0 - 1, x0:x1].mean() > 0.45:
+                    y0 -= 1
+                while y1 < h and mask[y1, x0:x1].mean() > 0.45:
+                    y1 += 1
+                rh = y1 - y0
+                if rh > max_h or rh < 2 or rw / max(rh, 1) < 1.2:
+                    continue
+                if rw > max_w or rw * rh > max_area:
+                    continue
+                cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+                key = (round(cx / 8), round(cy / 6))
+                if key in seen:
+                    continue
+                seen.add(key)
+                icx, icy = int(cx), int(cy)
+                cr, cg, cb = arr[icy, icx]
+                rects.append({
+                    "x": cx, "y": cy, "w": rw, "h": rh,
+                    "color": [float(cr / 255), float(cg / 255), float(cb / 255)],
+                })
+
+    rects.sort(key=lambda t: t["w"] * t["h"])
+    picked = []
+    for rect in rects:
+        if any(abs(rect["x"] - p["x"]) < min_dist and abs(rect["y"] - p["y"]) < 14
+               for p in picked):
+            continue
+        picked.append(rect)
+        if len(picked) >= max_count:
+            break
+    return picked
+
 # ---------------------------------------------------------------------------
 # Контекст, передаваемый в эффекты
 # ---------------------------------------------------------------------------
@@ -214,6 +281,22 @@ class Ctx:
         layer.add_shape(grp)
         layer.transform.position.value = [self.cx if x is None else x,
                                           self.cy if y is None else y]
+        layer.in_point, layer.out_point = 0, self.frames
+        return layer
+
+    def rect_blink_layer(self, x, y, w, h, color, name="led"):
+        """Прямоугольник-индикатор (центр x,y) для имитации LED на шкафу."""
+        layer = ShapeLayer()
+        layer.name = name
+        grp = Group()
+        rc = Rect()
+        rc.size.value = [w, h]
+        rc.position.value = [0, 0]
+        fill = Fill(parse_color(color))
+        grp.add_shape(rc)
+        grp.add_shape(fill)
+        layer.add_shape(grp)
+        layer.transform.position.value = [x, y]
         layer.in_point, layer.out_point = 0, self.frames
         return layer
 

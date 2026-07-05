@@ -130,7 +130,7 @@ def main(argv=None):
     output = args.output or os.path.join(
         "output", f"{args.name or os.path.splitext(os.path.basename(args.image))[0]}.{ext}")
 
-    an = build(image=args.image, effect=effect, duration=args.duration,
+    an = build(image=args.image, effect_spec=effect, duration=args.duration,
                fps=args.fps, loop=args.loop,
                params=_parse_params(args.param), name=args.name)
     if args.format == "gif":

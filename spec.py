@@ -37,6 +37,7 @@ from lottie.objects.assets import Image
 
 # эффекты, понимающие точку (x,y) через ctx.params["spots"]
 _SPOT_EFFECTS = {"glow_spots", "flicker_spots"}
+_RECT_EFFECTS = {"rect_blink"}
 
 
 def _apply(ctx: Ctx, effect_name: str, params: dict, spot=None):
@@ -54,6 +55,12 @@ def _apply(ctx: Ctx, effect_name: str, params: dict, spot=None):
             if "peak" in p:
                 sp["peak"] = p["peak"]
             p["spots"] = [sp]
+        if spot is not None and name in _RECT_EFFECTS:
+            rect = {"x": spot[0], "y": spot[1]}
+            for key in ("w", "h", "color", "phase", "peak"):
+                if key in p:
+                    rect[key] = p[key]
+            p["rects"] = [rect]
         ctx.params = p
         REGISTRY[name]["fn"](ctx)
     ctx.params = saved
