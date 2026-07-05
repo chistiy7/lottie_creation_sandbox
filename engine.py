@@ -294,10 +294,15 @@ _FMT_SLUG = {
     "json": "lottie", "lottie": "lottie", "lottie-json": "lottie",
     "dotlottie": "dotlottie", "archive": "dotlottie",
     "html": "html", "svg": "svg", "tgs": "tgs",
+    "gif": "gif",
 }
 
 
-def export(an, path, fmt="json"):
+def export(an, path, fmt="json", **kwargs):
+    if fmt == "gif":
+        from export_gif import export_gif
+        return export_gif(an, path, **kwargs)
+
     slug = _FMT_SLUG.get(fmt, fmt)
     exporter = _EXPORTERS.get(slug)
     if exporter is None:

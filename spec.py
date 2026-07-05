@@ -169,13 +169,17 @@ def build_from_spec(spec) -> Animation:
     raise ValueError(f"Неизвестный type спецификации: {kind!r} (regions|sequence)")
 
 
-def generate_from_spec(spec, output=None, fmt="json", player=None):
+def generate_from_spec(spec, output=None, fmt="json", player=None,
+                       gif_width=360, gif_fps=12):
     """Собирает по spec; при output — экспортирует. player=path -> HTML-плеер с триггером."""
     if isinstance(spec, (str, Path)):
         spec = json.loads(Path(spec).read_text(encoding="utf-8"))
     an = build_from_spec(spec)
     if output:
-        export(an, output, fmt)
+        if fmt == "gif":
+            export(an, output, fmt, max_width=gif_width, fps=gif_fps)
+        else:
+            export(an, output, fmt)
         if player:
             write_player_html(output, player,
                               trigger=spec.get("trigger", "loop"),
