@@ -6,7 +6,7 @@
 
 import random
 
-from engine import effect, kfs, parse_color, detect_bright_spots, detect_led_bars
+from engine import effect, kfs, parse_color, detect_bright_spots, detect_led_masks, led_mask_near
 from lottie.objects.layers import ShapeLayer
 from lottie.objects.shapes import (
     Rect, Group, Fill, GradientFill, GradientType, Star, StarType,
@@ -48,42 +48,53 @@ def _blink_kfs(frames, phase, rise, fall, peak):
     return ks
 
 
-def _rects(ctx):
-    """Ручные rects или авто-детект LED-полосок."""
+def _led_regions(ctx):
+    """Ручные regions (с image или x,y) или авто-детект масок LED."""
     p = ctx.params
+    if p.get("regions"):
+        return p["regions"]
     if p.get("rects"):
-        return p["rects"]
-    return detect_led_bars(
+        # legacy: точки -> ближайшие маски
+        out = []
+        for r in p["rects"]:
+            m = led_mask_near(ctx.image_path, r["x"], r["y"],
+                              radius=p.get("snap_radius", 60),
+                              threshold=p.get("threshold", 130))
+            if m:
+                if "phase" in r:
+                    m = dict(m, phase=r["phase"])
+                out.append(m)
+        return out
+    return detect_led_masks(
         ctx.image_path,
         threshold=p.get("threshold", 130),
-        min_w=p.get("min_w", 15),
+        min_w=p.get("min_w", 4),
         max_w=p.get("max_w", 120),
         max_h=p.get("max_h", 50),
-        max_area=p.get("max_area", 3500),
+        max_area=p.get("max_area", 3000),
         max_count=p.get("count", 20),
-        min_dist=p.get("min_dist", 28),
+        min_dist=p.get("min_dist", 24),
+        pad=p.get("pad", 2),
+        glow=p.get("glow", 1.0),
     )
 
 
 @effect("rect_blink", "overlay",
-        "Мигание прямоугольных LED-индикаторов на шкафах (как в эталоне). "
-        "Авто-детект полосок или ручные rects. "
-        "params: count, threshold, rise, peak, seed, rects")
+        "Мигание LED по контуру ярких пикселей (не прямоугольник). "
+        "Авто-детект масок или ручные regions. "
+        "params: count, threshold, rise, peak, glow, seed, regions")
 def rect_blink(ctx):
     p = ctx.params
     rng = random.Random(p.get("seed", 11))
     rise = p.get("rise", max(8, round(ctx.frames * 0.22)))
     fall = p.get("fall", rise)
     peak = p.get("peak", 100)
-    pad_x = p.get("pad_x", 1.15)
-    pad_y = p.get("pad_y", 1.3)
-    for i, r in enumerate(_rects(ctx)):
-        x = r["x"] + ctx.ox
-        y = r["y"] + ctx.oy
-        rw = r.get("w", p.get("width", 80)) * pad_x
-        rh = r.get("h", p.get("height", 12)) * pad_y
-        col = p.get("color") or r.get("color", "#10a6ff")
-        L = ctx.rect_blink_layer(x, y, rw, rh, col, name=f"led_{i}")
+    for i, r in enumerate(_led_regions(ctx)):
+        img = r.get("image")
+        if img is None:
+            continue
+        x, y = r["x"], r["y"]
+        L = ctx.mask_blink_layer(img, x, y, name=f"led_{i}")
         phase = r.get("phase", rng.uniform(0, max(1, ctx.frames - rise - fall)))
         kfs(L.transform.opacity, _blink_kfs(ctx.frames, phase, rise, fall, peak))
         ctx.add_overlay(L)

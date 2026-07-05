@@ -156,69 +156,104 @@ def detect_bright_spots(path, count=12, threshold=0.5, min_dist_frac=0.045):
 
 def detect_led_bars(path, threshold=130, min_w=15, max_w=120, max_h=50,
                     max_area=3500, max_count=20, min_dist=28):
-    """Находит горизонтальные LED-полоски на серверных шкафах.
+    """Устаревший bbox-детект; для совместимости. Предпочтительно detect_led_masks."""
+    return detect_led_masks(
+        path, threshold=threshold, min_w=min_w, max_w=max_w, max_h=max_h,
+        max_area=max_area, max_count=max_count, min_dist=min_dist,
+    )
 
-  Возвращает список {x, y, w, h, color} в координатах исходного PNG.
-  Алгоритм: построчное сканирование ярких cyan-пикселей + слияние сегментов.
+
+def _bright_led_mask(arr, threshold=130):
+    import numpy as np
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
+    return (lum > threshold) & (g > 100) & (b > 100) & (r < 140)
+
+
+def detect_led_masks(path, threshold=130, min_area=6, max_w=120, max_h=50,
+                     max_area=3000, max_count=20, min_dist=24, pad=2,
+                     glow=1.0, min_w=4):
+    """Находит LED-индикаторы и возвращает RGBA-маски по реальному контуру пикселей.
+
+    Каждый элемент: {x, y, w, h, image} — image это PIL RGBA вырезка ярких пикселей.
     """
-    from PIL import Image as PILImage
+    from collections import deque
+    from PIL import Image as PILImage, ImageFilter
     import numpy as np
 
     im = PILImage.open(path).convert("RGB")
     arr = np.array(im)
     h, w = arr.shape[:2]
-    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
-    lum = 0.299 * r + 0.587 * g + 0.114 * b
 
-    rects = []
-    seen = set()
-    for thr in (threshold, threshold - 20, threshold - 35):
-        mask = (lum > thr) & (g > 110) & (b > 110) & (r < 130)
-        for y in range(h):
-            row = mask[y]
-            x = 0
-            while x < w:
-                while x < w and not row[x]:
-                    x += 1
-                x0 = x
-                while x < w and row[x]:
-                    x += 1
-                x1 = x
-                rw = x1 - x0
-                if rw < min_w:
+    picked = []
+    for thr in (threshold, threshold - 15, threshold - 30):
+        mask = _bright_led_mask(arr, thr)
+        visited = np.zeros(mask.shape, dtype=bool)
+        regions = []
+
+        for sy in range(h):
+            for sx in range(w):
+                if not mask[sy, sx] or visited[sy, sx]:
                     continue
-                y0, y1 = y, y + 1
-                while y0 > 0 and mask[y0 - 1, x0:x1].mean() > 0.45:
-                    y0 -= 1
-                while y1 < h and mask[y1, x0:x1].mean() > 0.45:
-                    y1 += 1
-                rh = y1 - y0
-                if rh > max_h or rh < 2 or rw / max(rh, 1) < 1.2:
+                q = deque([(sx, sy)])
+                visited[sy, sx] = True
+                xs, ys = [sx], [sy]
+                while q:
+                    x, y = q.popleft()
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < w and 0 <= ny < h and not visited[ny, nx] and mask[ny, nx]:
+                            visited[ny, nx] = True
+                            q.append((nx, ny))
+                            xs.append(nx)
+                            ys.append(ny)
+
+                area = len(xs)
+                minx, maxx = min(xs), max(xs)
+                miny, maxy = min(ys), max(ys)
+                rw, rh = maxx - minx + 1, maxy - miny + 1
+                if area < min_area or rw < min_w or rh < 2:
                     continue
-                if rw > max_w or rw * rh > max_area:
+                if rw > max_w or rh > max_h or rw * rh > max_area:
                     continue
-                cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-                key = (round(cx / 8), round(cy / 6))
-                if key in seen:
-                    continue
-                seen.add(key)
-                icx, icy = int(cx), int(cy)
-                cr, cg, cb = arr[icy, icx]
-                rects.append({
-                    "x": cx, "y": cy, "w": rw, "h": rh,
-                    "color": [float(cr / 255), float(cg / 255), float(cb / 255)],
+
+                x0, y0 = max(0, minx - pad), max(0, miny - pad)
+                x1, y1 = min(w, maxx + pad + 1), min(h, maxy + pad + 1)
+                local = mask[y0:y1, x0:x1]
+                crop = arr[y0:y1, x0:x1].copy()
+                rgba = np.zeros((y1 - y0, x1 - x0, 4), dtype=np.uint8)
+                rgba[..., :3] = crop
+                rgba[..., 3] = (local * 255).astype(np.uint8)
+                pil = PILImage.fromarray(rgba, "RGBA")
+                if glow > 0:
+                    pil = pil.filter(ImageFilter.GaussianBlur(radius=glow))
+
+                cx, cy = (minx + maxx) / 2, (miny + maxy) / 2
+                regions.append({
+                    "x": cx, "y": cy, "w": x1 - x0, "h": y1 - y0,
+                    "image": pil, "area": area,
                 })
 
-    rects.sort(key=lambda t: t["w"] * t["h"])
-    picked = []
-    for rect in rects:
-        if any(abs(rect["x"] - p["x"]) < min_dist and abs(rect["y"] - p["y"]) < 14
-               for p in picked):
-            continue
-        picked.append(rect)
-        if len(picked) >= max_count:
-            break
-    return picked
+        for reg in sorted(regions, key=lambda t: t["area"]):
+            if any(abs(reg["x"] - p["x"]) < min_dist and abs(reg["y"] - p["y"]) < 12
+                   for p in picked):
+                continue
+            picked.append(reg)
+            if len(picked) >= max_count:
+                return [{k: v for k, v in r.items() if k != "area"} for r in picked]
+
+    return [{k: v for k, v in r.items() if k != "area"} for r in picked]
+
+
+def led_mask_near(path, x, y, radius=60, **kwargs):
+    """Маска LED, ближайшего к точке (x, y) в координатах PNG."""
+    masks = detect_led_masks(path, max_count=200, **kwargs)
+    if not masks:
+        return None
+    best = min(masks, key=lambda m: (m["x"] - x) ** 2 + (m["y"] - y) ** 2)
+    if (best["x"] - x) ** 2 + (best["y"] - y) ** 2 > radius ** 2:
+        return None
+    return best
 
 # ---------------------------------------------------------------------------
 # Контекст, передаваемый в эффекты
@@ -242,6 +277,7 @@ class Ctx:
     loop: bool = True
     params: dict = field(default_factory=dict)
     overlays: list = field(default_factory=list)   # shape-слои поверх картинки
+    _asset_idx: int = 0
 
     # --- строительные примитивы для overlay-эффектов ---
     def add_overlay(self, layer):
@@ -281,6 +317,20 @@ class Ctx:
         layer.add_shape(grp)
         layer.transform.position.value = [self.cx if x is None else x,
                                           self.cy if y is None else y]
+        layer.in_point, layer.out_point = 0, self.frames
+        return layer
+
+    def mask_blink_layer(self, pil_image, cx, cy, name="led"):
+        """Слой с RGBA-вырезкой LED (мигает по реальному контуру пикселей)."""
+        self._asset_idx += 1
+        asset = Image().load(pil_image, format="PNG")
+        asset.id = f"led_mask_{self._asset_idx}"
+        self.an.assets.append(asset)
+        iw, ih = pil_image.size
+        layer = ImageLayer(asset.id)
+        layer.name = name
+        layer.transform.anchor_point.value = [iw / 2, ih / 2]
+        layer.transform.position.value = [cx + self.ox, cy + self.oy]
         layer.in_point, layer.out_point = 0, self.frames
         return layer
 

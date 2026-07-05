@@ -56,11 +56,15 @@ def _apply(ctx: Ctx, effect_name: str, params: dict, spot=None):
                 sp["peak"] = p["peak"]
             p["spots"] = [sp]
         if spot is not None and name in _RECT_EFFECTS:
-            rect = {"x": spot[0], "y": spot[1]}
-            for key in ("w", "h", "color", "phase", "peak"):
-                if key in p:
-                    rect[key] = p[key]
-            p["rects"] = [rect]
+            m = led_mask_near(ctx.image_path, spot[0], spot[1],
+                              radius=p.get("snap_radius", 60),
+                              threshold=p.get("threshold", 130))
+            if m:
+                if "phase" in p:
+                    m = dict(m, phase=p["phase"])
+                p["regions"] = [m]
+            else:
+                p["regions"] = []
         ctx.params = p
         REGISTRY[name]["fn"](ctx)
     ctx.params = saved
