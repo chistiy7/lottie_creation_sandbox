@@ -72,6 +72,7 @@
       <h3>2. Кликни по картинке → эффект в точке</h3>
       <div class="row">
         <select id="spotEffect">
+          <option value="rect_blink">rect_blink — мигание LED-полосок</option>
           <option value="glow_spots">glow_spots — мягкое свечение</option>
           <option value="flicker_spots">flicker_spots — неоновое мигание</option>
           <option value="sparkles">sparkles — искры</option>
@@ -80,7 +81,7 @@
         <label style="margin:0">радиус <input type="number" id="spotRadius" value="45" min="4"></label>
         <label style="margin:0">пик <input type="number" id="spotPeak" value="90" min="1" max="100"></label>
       </div>
-      <p class="hint">Каждый клик добавляет точку выбранного эффекта. ЛКМ — добавить.</p>
+      <p class="hint">Кликайте по центру каждого LED. Координаты (x,y) сохраняются в спеку — авто-режим отключён.</p>
       <ul class="list" id="placeList"></ul>
     </div>
 
@@ -100,6 +101,7 @@
         <label style="margin:0">fps <input type="number" id="fpsA" value="30"></label>
         <label style="margin:0">длит. с <input type="number" id="durA" value="2.5" step="0.5"></label>
         <label style="margin:0"><input type="checkbox" id="loopA" checked> loop</label>
+        <label style="margin:0"><input type="checkbox" id="bgA"> фон в Lottie</label>
       </div>
       <div class="row" style="margin-top:10px">
         <button class="go" onclick="genA()">▶ Собрать и показать</button>
@@ -266,7 +268,8 @@ function renderGlobalList(){
 
 function specA(){
   return { type:'regions', image:A.image, fps:+$('fpsA').value, duration:+$('durA').value,
-           loop:$('loopA').checked, globals:A.globals, placements:A.placements };
+           loop:$('loopA').checked, include_background:$('bgA').checked,
+           globals:A.globals, placements:A.placements };
 }
 function genA(){ generate(specA()); }
 function saveA(){
@@ -357,6 +360,7 @@ function downloadJSON(){
 }
 
 // init
+$('bgA').checked = false;
 setImageA(A.image);
 </script>
 </html>

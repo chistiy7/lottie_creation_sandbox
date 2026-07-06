@@ -81,24 +81,41 @@ def main(argv=None):
     ap.add_argument("--loop", action="store_true", default=True)
     ap.add_argument("--no-loop", dest="loop", action="store_false")
     ap.add_argument("--format", "-f", default="json",
-                    choices=["json", "dotlottie", "html", "svg", "tgs"], help="формат экспорта")
+                    choices=["json", "dotlottie", "html", "svg", "tgs", "gif"],
+                    help="формат экспорта (gif — для мобильного просмотра)")
+    ap.add_argument("--gif-width", type=int, default=360,
+                    help="ширина GIF в px (только --format gif)")
+    ap.add_argument("--gif-fps", type=int, default=12,
+                    help="FPS GIF (только --format gif)")
     ap.add_argument("--output", "-o", help="путь вывода (по умолч. output/<имя>.<ext>)")
     ap.add_argument("--name")
     ap.add_argument("--param", action="append", help="параметр key=value (можно многократно)")
     ap.add_argument("--list", action="store_true", help="показать каталог эффектов")
     ap.add_argument("--spec", "-s",
                     help="директивная сборка по JSON-спеке (regions | sequence)")
+    ap.add_argument("--import-lottie",
+                    help="импорт placements из эталонного Lottie JSON → spec (нужны -i и -o)")
     ap.add_argument("--player", help="куда записать HTML-плеер с триггером (для --spec)")
     args = ap.parse_args(argv)
+
+    if args.import_lottie:
+        if not args.image or not args.output:
+            ap.error("--import-lottie требует --image (-i) и --output (-o)")
+        from lottie_coords import import_to_spec
+        spec = import_to_spec(args.import_lottie, args.image, args.output, name=args.name)
+        print(f"OK -> {args.output}  ({len(spec['placements'])} LED, "
+              f"include_background={spec['include_background']})")
+        return
 
     if args.spec:
         import json
         spec = json.loads(open(args.spec, encoding="utf-8").read())
         ext = {"json": "json", "dotlottie": "lottie", "html": "html",
-               "svg": "svg", "tgs": "tgs"}[args.format]
+               "svg": "svg", "tgs": "tgs", "gif": "gif"}[args.format]
         stem = args.name or spec.get("name") or os.path.splitext(os.path.basename(args.spec))[0]
         output = args.output or os.path.join("output", f"{stem}.{ext}")
-        generate_from_spec(spec, output=output, fmt=args.format, player=args.player)
+        generate_from_spec(spec, output=output, fmt=args.format, player=args.player,
+                           gif_width=args.gif_width, gif_fps=args.gif_fps)
         print(f"OK -> {output}" + (f"  (player: {args.player})" if args.player else ""))
         return
 
@@ -119,13 +136,18 @@ def main(argv=None):
         ap.error("нужен --image (или --list)")
 
     effect = [e.strip() for e in args.effect.split(",")] if "," in args.effect else args.effect
-    ext = {"json": "json", "dotlottie": "lottie", "html": "html", "svg": "svg", "tgs": "tgs"}[args.format]
+    ext = {"json": "json", "dotlottie": "lottie", "html": "html",
+           "svg": "svg", "tgs": "tgs", "gif": "gif"}[args.format]
     output = args.output or os.path.join(
         "output", f"{args.name or os.path.splitext(os.path.basename(args.image))[0]}.{ext}")
 
-    generate_animation(image=args.image, effect=effect, duration=args.duration,
-                       fps=args.fps, loop=args.loop, output=output, fmt=args.format,
-                       params=_parse_params(args.param), name=args.name)
+    an = build(image=args.image, effect_spec=effect, duration=args.duration,
+               fps=args.fps, loop=args.loop,
+               params=_parse_params(args.param), name=args.name)
+    if args.format == "gif":
+        export(an, output, "gif", max_width=args.gif_width, fps=args.gif_fps)
+    else:
+        export(an, output, args.format)
     print(f"OK -> {output}")
 
 

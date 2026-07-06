@@ -1,0 +1,169 @@
+{
+  "type": "regions",
+  "fps": 24,
+  "duration": 2.0833,
+  "loop": true,
+  "include_background": false,
+  "placements": [
+    {
+      "effect": "rect_blink",
+      "x": 930.941,
+      "y": 704.696,
+      "params": {
+        "phase": 33,
+        "rise": 9,
+        "fall": 10,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 927.941,
+      "y": 731.196,
+      "params": {
+        "phase": 25,
+        "rise": 9,
+        "fall": 10,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 772.941,
+      "y": 1014.196,
+      "params": {
+        "phase": 13,
+        "rise": 11,
+        "fall": 11,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 756.941,
+      "y": 630.196,
+      "params": {
+        "phase": 7,
+        "rise": 11,
+        "fall": 11,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 401.941,
+      "y": 800.696,
+      "params": {
+        "phase": 2,
+        "rise": 11,
+        "fall": 11,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 251.941,
+      "y": 682.196,
+      "params": {
+        "phase": 23,
+        "rise": 11,
+        "fall": 11,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 479.0,
+      "y": 136.0,
+      "params": {
+        "phase": 0,
+        "rise": 11,
+        "fall": 11,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 619.0,
+      "y": 1088.0,
+      "params": {
+        "phase": 23,
+        "rise": 13,
+        "fall": 13,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 141.0,
+      "y": 870.0,
+      "params": {
+        "phase": 8,
+        "rise": 15,
+        "fall": 16,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 623.0,
+      "y": 962.0,
+      "params": {
+        "phase": 23,
+        "rise": 15,
+        "fall": 13,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 931.0,
+      "y": 394.0,
+      "params": {
+        "phase": 6,
+        "rise": 15,
+        "fall": 13,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 267.0,
+      "y": 606.0,
+      "params": {
+        "phase": 21,
+        "rise": 15,
+        "fall": 12,
+        "peak": 100
+      }
+    },
+    {
+      "effect": "rect_blink",
+      "x": 129.0,
+      "y": 510.0,
+      "params": {
+        "phase": 0,
+        "rise": 15,
+        "fall": 15,
+        "peak": 100
+      }
+    }
+  ],
+  "globals": [
+    {
+      "effect": "ambient_pulse",
+      "params": {
+        "peak": 19,
+        "phase": 0,
+        "rise": 32,
+        "fall": 24
+      }
+    }
+  ],
+  "canvas": {
+    "w": 1024,
+    "h": 1536
+  },
+  "image": "assets/reference_server_room.jpg",
+  "name": "reference_server_room_overlay"
+}

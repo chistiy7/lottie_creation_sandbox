@@ -36,6 +36,69 @@ def _pulse_kfs(frames, phase, rise, fall, peak):
     return ks
 
 
+def _blink_kfs(frames, phase, rise, fall, peak):
+    ks = [(0, 0)]
+    if phase > 0:
+        ks.append((phase, 0))
+    ks.append((phase + rise, peak, "ease_in_out"))
+    end = min(frames, phase + rise + fall)
+    ks.append((end, 0, "ease_in_out"))
+    if end < frames:
+        ks.append((frames, 0))
+    return ks
+
+
+def _led_regions(ctx):
+    """Только явные regions из placements — авто-детект отключён."""
+    p = ctx.params
+    if p.get("regions"):
+        return p["regions"]
+    raise ValueError(
+        "rect_blink требует placements (x, y) в спеке или клик в editor.html. "
+        "Чистый авто-режим отключён."
+    )
+
+
+@effect("rect_blink", "overlay",
+        "Мягкое мигание LED (градиент + Screen). Только placements (x,y) в спеке. "
+        "params: phase, rise, fall, peak, w, h, color")
+def rect_blink(ctx):
+    p = ctx.params
+    rise_default = max(8, round(ctx.frames * 0.22))
+    default_peak = p.get("peak", 72)
+    for i, r in enumerate(_led_regions(ctx)):
+        ctx._led_idx += 1
+        idx = ctx._led_idx - 1
+        x, y = r["x"], r["y"]
+        rw = r.get("w", p.get("w", 40))
+        rh = r.get("h", p.get("h", 8))
+        col = r.get("color", p.get("color", "#10d8ff"))
+        rise = r.get("rise", p.get("rise", rise_default))
+        fall = r.get("fall", p.get("fall", rise))
+        peak = r.get("peak", default_peak)
+        phase = r.get("phase", p.get("phase", 0))
+        L = ctx.led_glow_layer(x, y, rw, rh, col, name=f"led_{idx}",
+                               blur=p.get("blur", 0))
+        kfs(L.transform.opacity, _blink_kfs(ctx.frames, phase, rise, fall, peak))
+        ctx.add_overlay(L)
+
+
+@effect("ambient_pulse", "overlay",
+        "Лёгкая пульсация атмосферы на весь кадр; params: color, peak")
+def ambient_pulse(ctx):
+    p = ctx.params
+    peak = p.get("peak", 15)
+    L = ctx.rect_layer(ctx.canvas_w, ctx.canvas_h, p.get("color", "#0a3060"), name="ambient")
+    f = ctx.frames
+    if "phase" in p:
+        phase, rise, fall = p.get("phase", 0), p.get("rise", 32), p.get("fall", 24)
+        kfs(L.transform.opacity, _blink_kfs(f, phase, rise, fall, peak))
+    else:
+        mid = round(f * 0.64)
+        kfs(L.transform.opacity, [(0, 0), (mid, peak, "ease_in_out"), (f, 0, "ease_in_out")])
+    ctx.add_overlay(L)
+
+
 @effect("glow_spots", "overlay",
         "Мерцающие свечения на ярких точках PNG. Авто-детект или ручные spots. "
         "params: count, radius, peak, color, seed, spots")

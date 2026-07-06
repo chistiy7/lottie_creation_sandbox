@@ -1,0 +1,26 @@
+{
+  "type": "regions",
+  "name": "server_room_reference",
+  "image": "assets/reference_server_room.jpg",
+  "fps": 24,
+  "duration": 2.08,
+  "loop": true,
+  "globals": [
+    {
+      "effect": "rect_blink",
+      "params": {
+        "count": 16,
+        "threshold": 120,
+        "rise": 11,
+        "fall": 11,
+        "peak": 100,
+        "glow": 0.8,
+        "seed": 17
+      }
+    },
+    {
+      "effect": "ambient_pulse",
+      "params": {"color": "#0a3060", "peak": 15}
+    }
+  ]
+}

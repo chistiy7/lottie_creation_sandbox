@@ -25,6 +25,7 @@ from pathlib import Path
 
 from engine import (
     new_scene, finalize, export, kfs, REGISTRY, resolve_effects, Ctx,
+    led_region_at, led_mask_near,
 )
 from lottie.objects import Animation
 from lottie.objects.layers import ImageLayer
@@ -37,6 +38,7 @@ from lottie.objects.assets import Image
 
 # эффекты, понимающие точку (x,y) через ctx.params["spots"]
 _SPOT_EFFECTS = {"glow_spots", "flicker_spots"}
+_RECT_EFFECTS = {"rect_blink"}
 
 
 def _apply(ctx: Ctx, effect_name: str, params: dict, spot=None):
@@ -54,6 +56,14 @@ def _apply(ctx: Ctx, effect_name: str, params: dict, spot=None):
             if "peak" in p:
                 sp["peak"] = p["peak"]
             p["spots"] = [sp]
+        if spot is not None and name in _RECT_EFFECTS:
+            m = led_region_at(ctx.image_path, spot[0], spot[1],
+                              radius=p.get("snap_radius", 50),
+                              threshold=p.get("threshold", 130))
+            for key in ("phase", "rise", "fall", "peak", "w", "h", "color"):
+                if key in p:
+                    m = dict(m, **{key: p[key]})
+            p["regions"] = [m]
         ctx.params = p
         REGISTRY[name]["fn"](ctx)
     ctx.params = saved
@@ -65,26 +75,36 @@ def build_regions(spec: dict) -> Animation:
     duration = spec.get("duration", 2.0)
     loop = spec.get("loop", True)
     name = spec.get("name")
+    include_background = spec.get("include_background", True)
+    placements = spec.get("placements", [])
 
     all_effs = []
     for g in spec.get("globals", []):
         all_effs += resolve_effects(g["effect"])
-    for pl in spec.get("placements", []):
+    for pl in placements:
         all_effs += resolve_effects(pl["effect"])
+
+    if "rect_blink" in all_effs and not placements:
+        raise ValueError(
+            "rect_blink требует placements с координатами (x, y). "
+            "Импортируйте из эталона: python generator.py --import-lottie ref.json -i png -o spec.json"
+        )
+
     has_transform = any(REGISTRY[e]["category"] == "transform" for e in all_effs)
     padding_ratio = spec.get("padding_ratio", 0.2 if has_transform else 0.0)
 
     an, ctx = new_scene(image, duration=duration, fps=fps, loop=loop,
-                        name=name, padding_ratio=padding_ratio)
+                        name=name, padding_ratio=padding_ratio,
+                        include_background=include_background)
 
     for g in spec.get("globals", []):
         _apply(ctx, g["effect"], g.get("params", {}))
 
-    for pl in spec.get("placements", []):
+    for pl in placements:
         _apply(ctx, pl["effect"], pl.get("params", {}),
                spot=(pl["x"], pl["y"]))
 
-    return finalize(an, ctx)
+    return finalize(an, ctx, include_background=include_background)
 
 
 # ---------------------------------------------------------------------------
@@ -169,13 +189,20 @@ def build_from_spec(spec) -> Animation:
     raise ValueError(f"Неизвестный type спецификации: {kind!r} (regions|sequence)")
 
 
-def generate_from_spec(spec, output=None, fmt="json", player=None):
+def generate_from_spec(spec, output=None, fmt="json", player=None,
+                       gif_width=360, gif_fps=12):
     """Собирает по spec; при output — экспортирует. player=path -> HTML-плеер с триггером."""
     if isinstance(spec, (str, Path)):
         spec = json.loads(Path(spec).read_text(encoding="utf-8"))
     an = build_from_spec(spec)
     if output:
-        export(an, output, fmt)
+        if fmt == "gif":
+            bg = None
+            if spec.get("include_background") is False and spec.get("image"):
+                bg = spec["image"]
+            export(an, output, fmt, max_width=gif_width, fps=gif_fps, bg_image=bg)
+        else:
+            export(an, output, fmt)
         if player:
             write_player_html(output, player,
                               trigger=spec.get("trigger", "loop"),
