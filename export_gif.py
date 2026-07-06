@@ -21,8 +21,14 @@ _RENDER_HTML = """<!DOCTYPE html>
   #wrap { line-height: 0; }
 </style>
 </head>
-<body><div id="wrap"><div id="anim"></div></div>
+<body><div id="wrap"><img id="bg" style="display:none;position:absolute;left:0;top:0;width:100%;height:100%"><div id="anim" style="position:relative"></div></div>
 <script>
+const BG = __BG__;
+if (BG) {
+  const bg = document.getElementById('bg');
+  bg.src = BG; bg.style.display = 'block';
+  document.getElementById('wrap').style.position = 'relative';
+}
 const DATA = __LOTTIE__;
 window.anim = lottie.loadAnimation({
   container: document.getElementById('anim'),
@@ -36,7 +42,8 @@ window.ready = new Promise(r => anim.addEventListener('DOMLoaded', r));
 """
 
 
-def export_gif(an, path, *, max_width=360, fps=12, frame_step=None, optimize=True):
+def export_gif(an, path, *, max_width=360, fps=12, frame_step=None, optimize=True,
+               bg_image=None):
     """Рендерит Animation в GIF через headless Chromium + lottie-web.
 
     max_width — уменьшение для мобильного (меньше вес файла).
@@ -61,7 +68,21 @@ def export_gif(an, path, *, max_width=360, fps=12, frame_step=None, optimize=Tru
     if not frames or frames[-1] != total - 1:
         frames.append(total - 1)
 
-    html = _RENDER_HTML.replace("__LOTTIE__", json.dumps(data, ensure_ascii=False))
+    bg_js = "null"
+    if bg_image and Path(bg_image).is_file():
+        import base64
+        from PIL import Image as PILImage
+        im = PILImage.open(bg_image).convert("RGB")
+        scale = min(1.0, max_width / im.width) if max_width else 1.0
+        if scale < 1.0:
+            im = im.resize((int(im.width * scale), int(im.height * scale)))
+        import io
+        buf = io.BytesIO()
+        im.save(buf, format="JPEG", quality=85)
+        bg_js = json.dumps("data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode())
+
+    html = _RENDER_HTML.replace("__BG__", bg_js).replace(
+        "__LOTTIE__", json.dumps(data, ensure_ascii=False))
 
     with tempfile.TemporaryDirectory() as tmp:
         html_path = Path(tmp) / "render.html"

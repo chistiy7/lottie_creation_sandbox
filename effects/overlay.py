@@ -6,7 +6,7 @@
 
 import random
 
-from engine import effect, kfs, parse_color, detect_bright_spots, detect_led_masks, led_mask_near
+from engine import effect, kfs, parse_color, detect_bright_spots
 from lottie.objects.layers import ShapeLayer
 from lottie.objects.shapes import (
     Rect, Group, Fill, GradientFill, GradientType, Star, StarType,
@@ -60,20 +60,25 @@ def _led_regions(ctx):
 
 
 @effect("rect_blink", "overlay",
-        "Мигание LED по контуру пикселей. Только с placements (x,y) в спеке. "
-        "params: phase, rise, fall, peak, glow")
+        "Мягкое мигание LED (градиент + Screen). Только placements (x,y) в спеке. "
+        "params: phase, rise, fall, peak, w, h, color")
 def rect_blink(ctx):
     p = ctx.params
     rise_default = max(8, round(ctx.frames * 0.22))
+    default_peak = p.get("peak", 72)
     for i, r in enumerate(_led_regions(ctx)):
-        img = r.get("image")
-        if img is None:
-            continue
+        ctx._led_idx += 1
+        idx = ctx._led_idx - 1
+        x, y = r["x"], r["y"]
+        rw = r.get("w", p.get("w", 40))
+        rh = r.get("h", p.get("h", 8))
+        col = r.get("color", p.get("color", "#10d8ff"))
         rise = r.get("rise", p.get("rise", rise_default))
         fall = r.get("fall", p.get("fall", rise))
-        peak = r.get("peak", p.get("peak", 100))
+        peak = r.get("peak", default_peak)
         phase = r.get("phase", p.get("phase", 0))
-        L = ctx.mask_blink_layer(img, r["x"], r["y"], name=f"led_{i}")
+        L = ctx.led_glow_layer(x, y, rw, rh, col, name=f"led_{idx}",
+                               blur=p.get("blur", 0))
         kfs(L.transform.opacity, _blink_kfs(ctx.frames, phase, rise, fall, peak))
         ctx.add_overlay(L)
 

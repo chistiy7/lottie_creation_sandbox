@@ -25,7 +25,7 @@ from pathlib import Path
 
 from engine import (
     new_scene, finalize, export, kfs, REGISTRY, resolve_effects, Ctx,
-    led_mask_at, led_mask_near,
+    led_region_at, led_mask_near,
 )
 from lottie.objects import Animation
 from lottie.objects.layers import ImageLayer
@@ -57,20 +57,10 @@ def _apply(ctx: Ctx, effect_name: str, params: dict, spot=None):
                 sp["peak"] = p["peak"]
             p["spots"] = [sp]
         if spot is not None and name in _RECT_EFFECTS:
-            m = led_mask_at(ctx.image_path, spot[0], spot[1],
-                            radius=p.get("snap_radius", 45),
-                            threshold=p.get("threshold", 130),
-                            glow=p.get("glow", 0.8))
-            if not m:
-                m = led_mask_near(ctx.image_path, spot[0], spot[1],
-                                  radius=p.get("snap_radius", 60),
-                                  threshold=p.get("threshold", 130))
-            if not m:
-                raise ValueError(
-                    f"rect_blink @ ({spot[0]}, {spot[1]}): LED не найден. "
-                    "Кликните точнее по центру индикатора."
-                )
-            for key in ("phase", "rise", "fall", "peak", "glow"):
+            m = led_region_at(ctx.image_path, spot[0], spot[1],
+                              radius=p.get("snap_radius", 50),
+                              threshold=p.get("threshold", 130))
+            for key in ("phase", "rise", "fall", "peak", "w", "h", "color"):
                 if key in p:
                     m = dict(m, **{key: p[key]})
             p["regions"] = [m]
@@ -207,7 +197,10 @@ def generate_from_spec(spec, output=None, fmt="json", player=None,
     an = build_from_spec(spec)
     if output:
         if fmt == "gif":
-            export(an, output, fmt, max_width=gif_width, fps=gif_fps)
+            bg = None
+            if spec.get("include_background") is False and spec.get("image"):
+                bg = spec["image"]
+            export(an, output, fmt, max_width=gif_width, fps=gif_fps, bg_image=bg)
         else:
             export(an, output, fmt)
         if player:
