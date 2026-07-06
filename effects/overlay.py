@@ -49,53 +49,31 @@ def _blink_kfs(frames, phase, rise, fall, peak):
 
 
 def _led_regions(ctx):
-    """Ручные regions (с image или x,y) или авто-детект масок LED."""
+    """Только явные regions из placements — авто-детект отключён."""
     p = ctx.params
     if p.get("regions"):
         return p["regions"]
-    if p.get("rects"):
-        # legacy: точки -> ближайшие маски
-        out = []
-        for r in p["rects"]:
-            m = led_mask_near(ctx.image_path, r["x"], r["y"],
-                              radius=p.get("snap_radius", 60),
-                              threshold=p.get("threshold", 130))
-            if m:
-                if "phase" in r:
-                    m = dict(m, phase=r["phase"])
-                out.append(m)
-        return out
-    return detect_led_masks(
-        ctx.image_path,
-        threshold=p.get("threshold", 130),
-        min_w=p.get("min_w", 4),
-        max_w=p.get("max_w", 120),
-        max_h=p.get("max_h", 50),
-        max_area=p.get("max_area", 3000),
-        max_count=p.get("count", 20),
-        min_dist=p.get("min_dist", 24),
-        pad=p.get("pad", 2),
-        glow=p.get("glow", 1.0),
+    raise ValueError(
+        "rect_blink требует placements (x, y) в спеке или клик в editor.html. "
+        "Чистый авто-режим отключён."
     )
 
 
 @effect("rect_blink", "overlay",
-        "Мигание LED по контуру ярких пикселей (не прямоугольник). "
-        "Авто-детект масок или ручные regions. "
-        "params: count, threshold, rise, peak, glow, seed, regions")
+        "Мигание LED по контуру пикселей. Только с placements (x,y) в спеке. "
+        "params: phase, rise, fall, peak, glow")
 def rect_blink(ctx):
     p = ctx.params
-    rng = random.Random(p.get("seed", 11))
-    rise = p.get("rise", max(8, round(ctx.frames * 0.22)))
-    fall = p.get("fall", rise)
-    peak = p.get("peak", 100)
+    rise_default = max(8, round(ctx.frames * 0.22))
     for i, r in enumerate(_led_regions(ctx)):
         img = r.get("image")
         if img is None:
             continue
-        x, y = r["x"], r["y"]
-        L = ctx.mask_blink_layer(img, x, y, name=f"led_{i}")
-        phase = r.get("phase", rng.uniform(0, max(1, ctx.frames - rise - fall)))
+        rise = r.get("rise", p.get("rise", rise_default))
+        fall = r.get("fall", p.get("fall", rise))
+        peak = r.get("peak", p.get("peak", 100))
+        phase = r.get("phase", p.get("phase", 0))
+        L = ctx.mask_blink_layer(img, r["x"], r["y"], name=f"led_{i}")
         kfs(L.transform.opacity, _blink_kfs(ctx.frames, phase, rise, fall, peak))
         ctx.add_overlay(L)
 
@@ -107,8 +85,12 @@ def ambient_pulse(ctx):
     peak = p.get("peak", 15)
     L = ctx.rect_layer(ctx.canvas_w, ctx.canvas_h, p.get("color", "#0a3060"), name="ambient")
     f = ctx.frames
-    mid = round(f * 0.64)
-    kfs(L.transform.opacity, [(0, 0), (mid, peak, "ease_in_out"), (f, 0, "ease_in_out")])
+    if "phase" in p:
+        phase, rise, fall = p.get("phase", 0), p.get("rise", 32), p.get("fall", 24)
+        kfs(L.transform.opacity, _blink_kfs(f, phase, rise, fall, peak))
+    else:
+        mid = round(f * 0.64)
+        kfs(L.transform.opacity, [(0, 0), (mid, peak, "ease_in_out"), (f, 0, "ease_in_out")])
     ctx.add_overlay(L)
 
 

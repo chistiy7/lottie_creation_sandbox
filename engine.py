@@ -83,7 +83,6 @@ COMBOS: dict[str, list[str]] = {
     "scene_alive": ["glow_spots", "breathe", "particles"],
     "neon":        ["flicker_spots", "breathe"],
     "cinematic":   ["glow_spots", "vignette", "light_sweep"],
-    "server_room": ["rect_blink", "ambient_pulse"],
     "server_room_glow": ["glow_spots", "breathe", "vignette"],
     # layer-fx combos
     "dreamy":      ["gaussian_blur_pulse", "breathe"],
@@ -245,6 +244,36 @@ def detect_led_masks(path, threshold=130, min_area=6, max_w=120, max_h=50,
     return [{k: v for k, v in r.items() if k != "area"} for r in picked]
 
 
+def led_mask_at(path, x, y, radius=45, threshold=130, glow=0.8, pad=2):
+    """RGBA-маска LED в окне вокруг заданных координат (продакшен-режим)."""
+    from PIL import Image as PILImage, ImageFilter
+    import numpy as np
+
+    im = PILImage.open(path).convert("RGB")
+    arr = np.array(im)
+    h, w = arr.shape[:2]
+    cx, cy = float(x), float(y)
+    x0, y0 = max(0, int(cx - radius)), max(0, int(cy - radius))
+    x1, y1 = min(w, int(cx + radius)), min(h, int(cy + radius))
+
+    for thr in (threshold, threshold - 20, threshold - 40, 100):
+        crop = arr[y0:y1, x0:x1]
+        r, g, b = crop[..., 0], crop[..., 1], crop[..., 2]
+        lum = 0.299 * r + 0.587 * g + 0.114 * b
+        local = (lum > thr) & (g > 90) & (b > 90) & (r < 145)
+        if local.sum() < 2:
+            continue
+        rgba = np.zeros((y1 - y0, x1 - x0, 4), dtype=np.uint8)
+        rgba[..., :3] = crop
+        rgba[..., 3] = (local * 255).astype(np.uint8)
+        pil = PILImage.fromarray(rgba, "RGBA")
+        if glow > 0:
+            pil = pil.filter(ImageFilter.GaussianBlur(radius=glow))
+        return {"x": cx, "y": cy, "w": x1 - x0, "h": y1 - y0, "image": pil}
+
+    return None
+
+
 def led_mask_near(path, x, y, radius=60, **kwargs):
     """Маска LED, ближайшего к точке (x, y) в координатах PNG."""
     masks = detect_led_masks(path, max_count=200, **kwargs)
@@ -356,7 +385,7 @@ class Ctx:
 # ---------------------------------------------------------------------------
 
 def new_scene(image, duration=2.0, fps=30, loop=True, params=None,
-              name=None, padding_ratio=0.0):
+              name=None, padding_ratio=0.0, include_background=True):
     """Готовит Animation + базовый ImageLayer + Ctx (слои ещё не добавлены).
 
     Возвращает (an, ctx). База лежит в ctx.img_layer; overlay-эффекты кладут свои
@@ -374,14 +403,16 @@ def new_scene(image, duration=2.0, fps=30, loop=True, params=None,
     an = Animation(frames, fps)
     an.width, an.height = cw, ch
     an.name = name or Path(image).stem
-    an.assets.append(src)
 
-    base = ImageLayer(src.id)
-    base.name = an.name
-    base.transform.anchor_point.value = [iw / 2, ih / 2]
-    base.transform.position.value = [cw / 2, ch / 2]
-    base.in_point, base.out_point = 0, frames
-    base.effects = []
+    base = None
+    if include_background:
+        an.assets.append(src)
+        base = ImageLayer(src.id)
+        base.name = an.name
+        base.transform.anchor_point.value = [iw / 2, ih / 2]
+        base.transform.position.value = [cw / 2, ch / 2]
+        base.in_point, base.out_point = 0, frames
+        base.effects = []
 
     ctx = Ctx(an=an, img_layer=base, frames=frames, fps=fps,
               img_w=iw, img_h=ih, canvas_w=cw, canvas_h=ch,
@@ -390,13 +421,14 @@ def new_scene(image, duration=2.0, fps=30, loop=True, params=None,
     return an, ctx
 
 
-def finalize(an, ctx, extra_layers=None):
-    """Собирает слои сцены: overlay поверх базовой картинки, проставляет индексы.
-
-    extra_layers — дополнительные слои (например кадры flipbook) вместо/вместе с
-    базовой картинкой; кладутся под overlay, порядок сохраняется.
-    """
-    base_layers = extra_layers if extra_layers is not None else [ctx.img_layer]
+def finalize(an, ctx, extra_layers=None, include_background=True):
+    """Собирает слои сцены: overlay поверх базовой картинки, проставляет индексы."""
+    if extra_layers is not None:
+        base_layers = extra_layers
+    elif include_background and ctx.img_layer is not None:
+        base_layers = [ctx.img_layer]
+    else:
+        base_layers = []
     layers = ctx.overlays + base_layers
     for i, layer in enumerate(layers):
         layer.index = i

@@ -25,6 +25,7 @@ from pathlib import Path
 
 from engine import (
     new_scene, finalize, export, kfs, REGISTRY, resolve_effects, Ctx,
+    led_mask_at, led_mask_near,
 )
 from lottie.objects import Animation
 from lottie.objects.layers import ImageLayer
@@ -56,15 +57,23 @@ def _apply(ctx: Ctx, effect_name: str, params: dict, spot=None):
                 sp["peak"] = p["peak"]
             p["spots"] = [sp]
         if spot is not None and name in _RECT_EFFECTS:
-            m = led_mask_near(ctx.image_path, spot[0], spot[1],
-                              radius=p.get("snap_radius", 60),
-                              threshold=p.get("threshold", 130))
-            if m:
-                if "phase" in p:
-                    m = dict(m, phase=p["phase"])
-                p["regions"] = [m]
-            else:
-                p["regions"] = []
+            m = led_mask_at(ctx.image_path, spot[0], spot[1],
+                            radius=p.get("snap_radius", 45),
+                            threshold=p.get("threshold", 130),
+                            glow=p.get("glow", 0.8))
+            if not m:
+                m = led_mask_near(ctx.image_path, spot[0], spot[1],
+                                  radius=p.get("snap_radius", 60),
+                                  threshold=p.get("threshold", 130))
+            if not m:
+                raise ValueError(
+                    f"rect_blink @ ({spot[0]}, {spot[1]}): LED не найден. "
+                    "Кликните точнее по центру индикатора."
+                )
+            for key in ("phase", "rise", "fall", "peak", "glow"):
+                if key in p:
+                    m = dict(m, **{key: p[key]})
+            p["regions"] = [m]
         ctx.params = p
         REGISTRY[name]["fn"](ctx)
     ctx.params = saved
@@ -76,26 +85,36 @@ def build_regions(spec: dict) -> Animation:
     duration = spec.get("duration", 2.0)
     loop = spec.get("loop", True)
     name = spec.get("name")
+    include_background = spec.get("include_background", True)
+    placements = spec.get("placements", [])
 
     all_effs = []
     for g in spec.get("globals", []):
         all_effs += resolve_effects(g["effect"])
-    for pl in spec.get("placements", []):
+    for pl in placements:
         all_effs += resolve_effects(pl["effect"])
+
+    if "rect_blink" in all_effs and not placements:
+        raise ValueError(
+            "rect_blink требует placements с координатами (x, y). "
+            "Импортируйте из эталона: python generator.py --import-lottie ref.json -i png -o spec.json"
+        )
+
     has_transform = any(REGISTRY[e]["category"] == "transform" for e in all_effs)
     padding_ratio = spec.get("padding_ratio", 0.2 if has_transform else 0.0)
 
     an, ctx = new_scene(image, duration=duration, fps=fps, loop=loop,
-                        name=name, padding_ratio=padding_ratio)
+                        name=name, padding_ratio=padding_ratio,
+                        include_background=include_background)
 
     for g in spec.get("globals", []):
         _apply(ctx, g["effect"], g.get("params", {}))
 
-    for pl in spec.get("placements", []):
+    for pl in placements:
         _apply(ctx, pl["effect"], pl.get("params", {}),
                spot=(pl["x"], pl["y"]))
 
-    return finalize(an, ctx)
+    return finalize(an, ctx, include_background=include_background)
 
 
 # ---------------------------------------------------------------------------

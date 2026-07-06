@@ -1,29 +1,27 @@
 {
   "type": "regions",
-  "name": "server_room_activity",
+  "name": "server_room_overlay",
   "image": "assets/server_room.png",
   "fps": 24,
-  "duration": 2.08,
+  "duration": 2.0833,
   "loop": true,
+  "include_background": false,
   "globals": [
-    {
-      "effect": "rect_blink",
-      "params": {
-        "count": 16,
-        "threshold": 120,
-        "rise": 11,
-        "fall": 11,
-        "peak": 100,
-        "glow": 0.8,
-        "seed": 17
-      }
-    },
-    {
-      "effect": "ambient_pulse",
-      "params": {
-        "color": "#0a3060",
-        "peak": 15
-      }
-    }
+    {"effect": "ambient_pulse", "params": {"peak": 19, "phase": 0, "rise": 32, "fall": 24}}
+  ],
+  "placements": [
+    {"effect": "rect_blink", "x": 930.941, "y": 704.696, "params": {"phase": 33, "rise": 9, "fall": 10}},
+    {"effect": "rect_blink", "x": 927.941, "y": 731.196, "params": {"phase": 25, "rise": 9, "fall": 10}},
+    {"effect": "rect_blink", "x": 772.941, "y": 1014.196, "params": {"phase": 13, "rise": 11, "fall": 11}},
+    {"effect": "rect_blink", "x": 756.941, "y": 630.196, "params": {"phase": 7, "rise": 11, "fall": 11}},
+    {"effect": "rect_blink", "x": 401.941, "y": 800.696, "params": {"phase": 2, "rise": 11, "fall": 11}},
+    {"effect": "rect_blink", "x": 251.941, "y": 682.196, "params": {"phase": 23, "rise": 11, "fall": 11}},
+    {"effect": "rect_blink", "x": 479, "y": 136, "params": {"phase": 0, "rise": 11, "fall": 11}},
+    {"effect": "rect_blink", "x": 619, "y": 1088, "params": {"phase": 23, "rise": 13, "fall": 13}},
+    {"effect": "rect_blink", "x": 141, "y": 870, "params": {"phase": 8, "rise": 15, "fall": 16}},
+    {"effect": "rect_blink", "x": 623, "y": 962, "params": {"phase": 23, "rise": 15, "fall": 13}},
+    {"effect": "rect_blink", "x": 931, "y": 394, "params": {"phase": 6, "rise": 15, "fall": 13}},
+    {"effect": "rect_blink", "x": 267, "y": 606, "params": {"phase": 21, "rise": 15, "fall": 12}},
+    {"effect": "rect_blink", "x": 129, "y": 510, "params": {"phase": 0, "rise": 15, "fall": 15}}
   ]
 }

@@ -93,8 +93,19 @@ def main(argv=None):
     ap.add_argument("--list", action="store_true", help="показать каталог эффектов")
     ap.add_argument("--spec", "-s",
                     help="директивная сборка по JSON-спеке (regions | sequence)")
+    ap.add_argument("--import-lottie",
+                    help="импорт placements из эталонного Lottie JSON → spec (нужны -i и -o)")
     ap.add_argument("--player", help="куда записать HTML-плеер с триггером (для --spec)")
     args = ap.parse_args(argv)
+
+    if args.import_lottie:
+        if not args.image or not args.output:
+            ap.error("--import-lottie требует --image (-i) и --output (-o)")
+        from lottie_coords import import_to_spec
+        spec = import_to_spec(args.import_lottie, args.image, args.output, name=args.name)
+        print(f"OK -> {args.output}  ({len(spec['placements'])} LED, "
+              f"include_background={spec['include_background']})")
+        return
 
     if args.spec:
         import json
